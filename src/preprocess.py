@@ -56,6 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('-dataset', default='', help='train, valid or test, defaul will process all datasets')
 
     parser.add_argument('-n_cpus', default=2, type=int)
+    parser.add_argument('-pretrained_bert', default="'bert-base-chinese'", type=str)
 
 
     args = parser.parse_args()

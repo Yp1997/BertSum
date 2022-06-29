@@ -243,7 +243,8 @@ class Trainer(object):
                         clss = batch.clss
                         mask = batch.mask
                         mask_cls = batch.mask_cls
-
+                        file_ids = batch.file_ids
+                        #print(file_ids)
 
                         gold = []
                         pred = []
@@ -267,12 +268,14 @@ class Trainer(object):
                         # selected_ids = np.sort(selected_ids,1)
                         for i, idx in enumerate(selected_ids):
                             _pred = []
+                            _pred_id = []
                             if(len(batch.src_str[i])==0):
                                 continue
                             for j in selected_ids[i][:len(batch.src_str[i])]:
                                 if(j>=len( batch.src_str[i])):
                                     continue
                                 candidate = batch.src_str[i][j].strip()
+                                
                                 if(self.args.block_trigram):
                                     if(not _block_tri(candidate,_pred)):
                                         _pred.append(candidate)
@@ -290,9 +293,9 @@ class Trainer(object):
                             gold.append(batch.tgt_str[i])
 
                         for i in range(len(gold)):
-                            save_gold.write(gold[i].strip()+'\n')
+                            save_gold.write(file_ids[i] + "<d>" + gold[i].strip()+'\n')
                         for i in range(len(pred)):
-                            save_pred.write(pred[i].strip()+'\n')
+                            save_pred.write(file_ids[i] + "<d>" + pred[i].strip()+'\n')
         if(step!=-1 and self.args.report_rouge):
             rouges = test_rouge(self.args.temp_dir, can_path, gold_path)
             logger.info('Rouges at step %d \n%s' % (step, rouge_results_to_str(rouges)))

@@ -23,17 +23,16 @@ class Batch(object):
             pre_labels = [x[1] for x in data]
             pre_segs = [x[2] for x in data]
             pre_clss = [x[3] for x in data]
+            file_ids = [x[-1] for x in data]
 
             src = torch.tensor(self._pad(pre_src, 0))
 
             labels = torch.tensor(self._pad(pre_labels, 0))
             segs = torch.tensor(self._pad(pre_segs, 0))
-            # mask = 1 - (src == 0)
-            mask = ~(src == 0)
+            mask = 1 - (src == 0).type(torch.uint8)
 
             clss = torch.tensor(self._pad(pre_clss, -1))
-            # mask_cls = 1 - (clss == -1)
-            mask_cls = ~(clss == -1)
+            mask_cls = 1 - (clss == -1).type(torch.uint8)
             clss[clss == -1] = 0
 
             setattr(self, 'clss', clss.to(device))
@@ -42,11 +41,12 @@ class Batch(object):
             setattr(self, 'labels', labels.to(device))
             setattr(self, 'segs', segs.to(device))
             setattr(self, 'mask', mask.to(device))
+            setattr(self, 'file_ids', file_ids)
 
             if (is_test):
-                src_str = [x[-2] for x in data]
+                src_str = [x[-3] for x in data]
                 setattr(self, 'src_str', src_str)
-                tgt_str = [x[-1] for x in data]
+                tgt_str = [x[-2] for x in data]
                 setattr(self, 'tgt_str', tgt_str)
 
     def __len__(self):
@@ -179,6 +179,11 @@ class DataIterator(object):
             labels = ex['labels']
         else:
             labels = ex['src_sent_labels']
+        
+        if('file_id' in ex):
+            file_id = ex['file_id']
+        else:
+            file_id = "0.txt"
 
         segs = ex['segs']
         if(not self.args.use_interval):
@@ -188,9 +193,9 @@ class DataIterator(object):
         tgt_txt = ex['tgt_txt']
 
         if(is_test):
-            return src,labels,segs, clss, src_txt, tgt_txt
+            return src,labels,segs, clss, src_txt, tgt_txt , file_id
         else:
-            return src,labels,segs, clss
+            return src,labels,segs, clss, file_id
 
     def batch_buffer(self, data, batch_size):
         minibatch, size_so_far = [], 0

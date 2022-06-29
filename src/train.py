@@ -253,7 +253,8 @@ def train(args, device_id):
         return data_loader.Dataloader(args, load_dataset(args, 'train', shuffle=True), args.batch_size, device,
                                                  shuffle=True, is_test=False)
 
-    model = Summarizer(args, device, load_pretrained_bert=True)
+    config = BertConfig.from_json_file(args.bert_config_path)
+    model = Summarizer(args, device, load_pretrained_bert=False, bert_config = config)
     if args.train_from != '':
         logger.info('Loading checkpoint from %s' % args.train_from)
         checkpoint = torch.load(args.train_from,
@@ -284,7 +285,7 @@ if __name__ == '__main__':
     parser.add_argument("-model_path", default='../models/')
     parser.add_argument("-result_path", default='../results/cnndm')
     parser.add_argument("-temp_dir", default='../temp')
-    parser.add_argument("-bert_config_path", default='../bert_config_uncased_base.json')
+    parser.add_argument("-bert_config_path", default='../bert_config_chinese_base.json')
 
     parser.add_argument("-batch_size", default=1000, type=int)
 

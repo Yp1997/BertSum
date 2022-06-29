@@ -144,17 +144,18 @@ def hashhex(s):
 class BertData():
     def __init__(self, args):
         self.args = args
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+        self.tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert)
         self.sep_vid = self.tokenizer.vocab['[SEP]']
         self.cls_vid = self.tokenizer.vocab['[CLS]']
         self.pad_vid = self.tokenizer.vocab['[PAD]']
 
-    def preprocess(self, src, tgt, oracle_ids):
+    def preprocess(self, src, tgt, oracle_ids, src_wrd_txt):
 
         if (len(src) == 0):
             return None
 
-        original_src_txt = [' '.join(s) for s in src]
+        #original_src_txt = [' '.join(s) for s in src]
+        original_src_txt = [s for s in src_wrd_txt]
 
         labels = [0] * len(src)
         for l in oracle_ids:
@@ -163,6 +164,7 @@ class BertData():
         idxs = [i for i, s in enumerate(src) if (len(s) > self.args.min_src_ntokens)]
 
         src = [src[i][:self.args.max_src_ntokens] for i in idxs]
+        
         labels = [labels[i] for i in idxs]
         src = src[:self.args.max_nsents]
         labels = labels[:self.args.max_nsents]
@@ -172,15 +174,21 @@ class BertData():
         if (len(labels) == 0):
             return None
 
-        src_txt = [' '.join(sent) for sent in src]
+        old_src_txt = [' '.join(sent) for sent in src]
         # text = [' '.join(ex['src_txt'][i].split()[:self.args.max_src_ntokens]) for i in idxs]
         # text = [_clean(t) for t in text]
+        src_txt = []
+        for st in old_src_txt:
+            st = ' '.join(self.tokenizer.tokenize(st))
+            src_txt.append(st)
+        
         text = ' [SEP] [CLS] '.join(src_txt)
-        src_subtokens = self.tokenizer.tokenize(text)
+        src_subtokens = text.split()
+        # src_subtokens = self.tokenizer.tokenize(text)
         src_subtokens = src_subtokens[:510]
         src_subtokens = ['[CLS]'] + src_subtokens + ['[SEP]']
-
         src_subtoken_idxs = self.tokenizer.convert_tokens_to_ids(src_subtokens)
+        
         _segs = [-1] + [i for i, t in enumerate(src_subtoken_idxs) if t == self.sep_vid]
         segs = [_segs[i] - _segs[i - 1] for i in range(1, len(_segs))]
         segments_ids = []
@@ -191,7 +199,7 @@ class BertData():
                 segments_ids += s * [1]
         cls_ids = [i for i, t in enumerate(src_subtoken_idxs) if t == self.cls_vid]
         labels = labels[:len(cls_ids)]
-
+        
         tgt_txt = '<q>'.join([' '.join(tt) for tt in tgt])
         src_txt = [original_src_txt[i] for i in idxs]
         return src_subtoken_idxs, labels, segments_ids, cls_ids, src_txt, tgt_txt
@@ -257,17 +265,38 @@ def _format_to_bert(params):
     jobs = json.load(open(json_file))
     datasets = []
     for d in jobs:
+        file_id = None
         source, tgt = d['src'], d['tgt']
+            
         if (args.oracle_mode == 'greedy'):
             oracle_ids = greedy_selection(source, tgt, 3)
         elif (args.oracle_mode == 'combination'):
             oracle_ids = combination_selection(source, tgt, 3)
-        b_data = bert.preprocess(source, tgt, oracle_ids)
+
+        if 'oracle_ids' in d:
+            oracle_ids = d['oracle_ids']
+            
+        if "src_wrd" in d:
+            src_wrd_txt = d["src_wrd"]
+            
+        b_data = bert.preprocess(source, tgt, oracle_ids, src_wrd_txt)
+            
         if (b_data is None):
             continue
         indexed_tokens, labels, segments_ids, cls_ids, src_txt, tgt_txt = b_data
+        
+        if "tgt_wrd" in d:
+            tgt_txt = '<q>'.join(d["tgt_wrd"])
+        
         b_data_dict = {"src": indexed_tokens, "labels": labels, "segs": segments_ids, 'clss': cls_ids,
                        'src_txt': src_txt, "tgt_txt": tgt_txt}
+                       
+        if "file_id" in d:
+            b_data_dict["file_id"] = d['file_id']
+        
+        if "graph_emb" in d:
+            b_data_dict["graph_emb"] = d["graph_emb"]
+            
         datasets.append(b_data_dict)
     logger.info('Saving to %s' % save_file)
     torch.save(datasets, save_file)
